@@ -1,11 +1,11 @@
 import api from './api';
 
 export const findMatches = async () => {
-  const response = await api.get('/match/find');
+  const response = await api.get('/api/match/find');
   return response.data.matches;
 };
 
 export const sendMatchRequest = async (receiverId, skillExchange) => {
-  const response = await api.post('/requests', { receiverId, skillExchange });
+  const response = await api.post('/api/requests', { receiverId, skillExchange });
   return response.data;
 };
