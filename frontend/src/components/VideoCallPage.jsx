@@ -48,8 +48,7 @@ const VideoCallPage = () => {
         setStream(userMedia);
         if (localVideoRef.current) localVideoRef.current.srcObject = userMedia;
 
-        const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : window.location.origin;
-        const newSocket = io(socketUrl);
+        const newSocket = io(SOCKET_SERVER_URL);
         setSocket(newSocket);
         newSocket.emit('join', user.id);
         newSocket.emit('join-session', sessionId);

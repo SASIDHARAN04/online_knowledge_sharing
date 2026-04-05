@@ -20,7 +20,7 @@ const ChatInterface = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : window.location.origin;
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const newSocket = io(socketUrl);
     setSocket(newSocket);
 
