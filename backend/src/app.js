@@ -3,9 +3,12 @@ const cors = require('cors');
 
 const app = express();
 
+const path = require('path');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 app.get('/', (req, res) => {
@@ -14,15 +17,19 @@ app.get('/', (req, res) => {
 
 // API Routes
 const authRoutes = require('./routes/authRoutes');
-const courseRoutes = require('./routes/courseRoutes');
-const exchangeRoutes = require('./routes/exchangeRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const userRoutes = require('./routes/userRoutes');
+const matchRoutes = require('./routes/matchRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
+const liveSessionRoutes = require('./routes/liveSessionRoutes');
 
 app.use('/api/auth', authRoutes);
-app.use('/api/courses', courseRoutes);
-app.use('/api/exchanges', exchangeRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/match', matchRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/session', liveSessionRoutes);
 
 module.exports = app;

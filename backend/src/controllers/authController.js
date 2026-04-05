@@ -23,11 +23,13 @@ const register = async (req, res) => {
       token,
       user: {
         id: user._id,
-        username: user.username,
+        name: user.name,
         email: user.email,
-        role: user.role,
-        skills: user.skills,
-        points: user.points
+        skillsOffered: user.skillsOffered,
+        skillsWanted: user.skillsWanted,
+        experienceLevel: user.experienceLevel,
+        availability: user.availability,
+        rating: user.rating
       }
     });
   } catch (error) {

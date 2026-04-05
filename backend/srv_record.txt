@@ -1,0 +1,18 @@
+﻿Server:  UnKnown
+Address:  172.16.16.16
+
+_mongodb._tcp.cluster0.309i1go.mongodb.net	SRV service location:
+	  priority       = 0
+	  weight         = 0
+	  port           = 27017
+	  svr hostname   = ac-bsocfgq-shard-00-01.309i1go.mongodb.net
+_mongodb._tcp.cluster0.309i1go.mongodb.net	SRV service location:
+	  priority       = 0
+	  weight         = 0
+	  port           = 27017
+	  svr hostname   = ac-bsocfgq-shard-00-02.309i1go.mongodb.net
+_mongodb._tcp.cluster0.309i1go.mongodb.net	SRV service location:
+	  priority       = 0
+	  weight         = 0
+	  port           = 27017
+	  svr hostname   = ac-bsocfgq-shard-00-00.309i1go.mongodb.net

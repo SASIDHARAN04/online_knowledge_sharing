@@ -9,12 +9,12 @@ const User = require('../models/User');
 
 // Register new user
 const registerUser = async (userData) => {
-  const { username, email, password, role, skills } = userData;
+  const { name, email, password, skillsOffered, skillsWanted, experienceLevel, availability } = userData;
 
   // Check if user already exists
-  const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+  const existingUser = await User.findOne({ email });
   if (existingUser) {
-    throw new Error('User already exists with this email or username');
+    throw new Error('User already exists with this email');
   }
 
   // Hash password
@@ -23,12 +23,13 @@ const registerUser = async (userData) => {
 
   // Create user
   const user = new User({
-    username,
+    name,
     email,
     password: hashedPassword,
-    role: role || 'Learner',
-    skills: skills || [],
-    points: 0
+    skillsOffered: skillsOffered || [],
+    skillsWanted: skillsWanted || [],
+    experienceLevel: experienceLevel || 'Beginner',
+    availability: availability || []
   });
 
   await user.save();
@@ -60,11 +61,13 @@ const loginUser = async (email, password) => {
     token,
     user: {
       id: user._id,
-      username: user.username,
+      name: user.name,
       email: user.email,
-      role: user.role,
-      skills: user.skills,
-      points: user.points,
+      skillsOffered: user.skillsOffered,
+      skillsWanted: user.skillsWanted,
+      experienceLevel: user.experienceLevel,
+      availability: user.availability,
+      rating: user.rating,
       avatar: user.avatar
     }
   };

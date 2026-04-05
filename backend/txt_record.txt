@@ -1,0 +1,6 @@
+﻿Server:  UnKnown
+Address:  172.16.16.16
+
+cluster0.309i1go.mongodb.net	text =
+
+	"authSource=admin&replicaSet=atlas-6o0yqr-shard-0"

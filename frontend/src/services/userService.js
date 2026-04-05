@@ -28,3 +28,9 @@ export const getPointsWallet = async () => {
   const response = await api.get('/users/wallet');
   return response.data;
 };
+
+// Get aggregated profile for current user
+export const getMyProfile = async () => {
+  const response = await api.get('/users/profile');
+  return response.data;
+};

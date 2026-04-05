@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Request = require('../models/Request');
 
 /**
  * User Controller
@@ -30,34 +31,46 @@ const getUserById = async (req, res) => {
 
 // Update user profile
 const updateProfile = async (req, res) => {
+  console.log('Update Profile Request:', { userId: req.user?._id, body: req.body });
   try {
-    const { skills, role, avatar } = req.body;
-    const user = await User.findById(req.user._id);
+    const updates = {};
+    if (req.body.skillsOffered) updates.skillsOffered = req.body.skillsOffered.map(s => s.toLowerCase().trim());
+    if (req.body.skillsWanted) updates.skillsWanted = req.body.skillsWanted.map(s => s.toLowerCase().trim());
+    if (req.body.experienceLevel) updates.experienceLevel = req.body.experienceLevel;
+    if (req.body.availability) updates.availability = req.body.availability.map(s => s.toLowerCase().trim());
+    if (req.body.avatar) updates.avatar = req.body.avatar;
 
-    if (skills) user.skills = skills;
-    if (role) user.role = role;
-    if (avatar) user.avatar = avatar;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select('-password');
 
-    await user.save();
-    const updatedUser = await User.findById(user._id).select('-password');
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
     res.json({
       message: 'Profile updated successfully',
       user: updatedUser
     });
   } catch (error) {
+    console.error('Backend Update Error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get user points/wallet
-const getPointsWallet = async (req, res) => {
+// Get aggregated profile for a user
+const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('points username');
-    res.json({
-      points: user.points,
-      username: user.username
-    });
+    const userId = req.params.userId || (req.user && req.user._id);
+    const user = await User.findById(userId).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const requests = await Request.find({ $or: [{ sender: userId }, { receiver: userId }] })
+      .populate('sender receiver', 'name');
+
+    res.json({ user, requests });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -67,5 +80,6 @@ module.exports = {
   getAllUsers,
   getUserById,
   updateProfile,
-  getPointsWallet
+  getUserProfile
 };
+

@@ -3,15 +3,15 @@ const User = require('../models/User');
 
 /**
  * Request Controller
- * Handles teaching/learning request operations
+ * Handles skill exchange request operations
  */
 
 // Get all requests
 const getAllRequests = async (req, res) => {
   try {
     const requests = await Request.find()
-      .populate('sender', 'username email role skills')
-      .populate('recipient', 'username email role skills');
+      .populate('sender', 'name email skillsOffered skillsWanted')
+      .populate('receiver', 'name email skillsOffered skillsWanted');
     res.json({ requests });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -22,12 +22,12 @@ const getAllRequests = async (req, res) => {
 const getMyRequests = async (req, res) => {
   try {
     const requests = await Request.find({
-      $or: [{ sender: req.user._id }, { recipient: req.user._id }]
+      $or: [{ sender: req.user._id }, { receiver: req.user._id }]
     })
-      .populate('sender', 'username email role skills')
-      .populate('recipient', 'username email role skills');
+      .populate('sender', 'name email skillsOffered skillsWanted avatar')
+      .populate('receiver', 'name email skillsOffered skillsWanted avatar');
     
-    const incoming = requests.filter(r => r.recipient._id.toString() === req.user._id.toString());
+    const incoming = requests.filter(r => r.receiver._id.toString() === req.user._id.toString());
     const outgoing = requests.filter(r => r.sender._id.toString() === req.user._id.toString());
 
     res.json({ incoming, outgoing });
@@ -39,24 +39,23 @@ const getMyRequests = async (req, res) => {
 // Create request
 const createRequest = async (req, res) => {
   try {
-    const { recipientId, type, details } = req.body;
+    const { receiverId, skillExchange } = req.body;
 
-    if (req.user._id.toString() === recipientId) {
+    if (req.user._id.toString() === receiverId) {
       return res.status(400).json({ message: 'Cannot send request to yourself' });
     }
 
     const request = new Request({
       sender: req.user._id,
-      recipient: recipientId,
-      type,
-      details,
+      receiver: receiverId,
+      skillExchange,
       status: 'Pending'
     });
 
     await request.save();
     const populatedRequest = await Request.findById(request._id)
-      .populate('sender', 'username email role skills')
-      .populate('recipient', 'username email role skills');
+      .populate('sender', 'name email skillsOffered skillsWanted avatar')
+      .populate('receiver', 'name email skillsOffered skillsWanted avatar');
 
     res.status(201).json({
       message: 'Request created successfully',
@@ -82,32 +81,29 @@ const updateRequestStatus = async (req, res) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    // Only recipient can accept/reject
-    if (request.recipient.toString() !== req.user._id.toString()) {
+    // Only receiver can accept/reject
+    if (request.receiver.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
     request.status = status;
     await request.save();
 
-    // Award points when accepted
+    // If accepted, we might want to create a Match record too.
     if (status === 'Accepted') {
-      const sender = await User.findById(request.sender);
-      const recipient = await User.findById(request.recipient);
-      
-      if (request.type === 'Teach') {
-        sender.points += 15; // Points for teaching
-      } else if (request.type === 'Learn') {
-        recipient.points += 15; // Points for learning
-      }
-      
-      await sender.save();
-      await recipient.save();
+      const Match = require('../models/Match');
+      const match = new Match({
+        user1: request.sender,
+        user2: request.receiver,
+        matchedSkills: [request.skillExchange],
+        status: 'Accepted'
+      });
+      await match.save();
     }
 
     const populatedRequest = await Request.findById(request._id)
-      .populate('sender', 'username email role skills')
-      .populate('recipient', 'username email role skills');
+      .populate('sender', 'name email skillsOffered skillsWanted avatar')
+      .populate('receiver', 'name email skillsOffered skillsWanted avatar');
 
     res.json({
       message: `Request ${status.toLowerCase()} successfully`,

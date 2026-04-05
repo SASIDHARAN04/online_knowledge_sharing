@@ -11,10 +11,20 @@ const api = axios.create({
   }
 });
 
-// Add token to requests if available
-const token = localStorage.getItem('token');
-if (token) {
-  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-}
+// Add token to requests using interceptor
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      if (config.headers.set) {
+        config.headers.set('Authorization', `Bearer ${token}`);
+      } else {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export default api;
