@@ -14,3 +14,8 @@ export const joinVideoSession = async (sessionId) => {
   const response = await api.get(`/api/sessions/join/${sessionId}`);
   return response.data;
 };
+
+export const createRealtimeSession = async (receiverId) => {
+    const response = await api.post('/api/session/create', { receiverId });
+    return response.data.session;
+};

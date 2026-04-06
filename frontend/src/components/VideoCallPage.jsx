@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { getSessionDetails } from '../services/sessionService';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
@@ -13,11 +13,11 @@ const SOCKET_SERVER_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000
 const VideoCallPage = () => {
   const { sessionId } = useParams();
   const { user } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
 
   const [session, setSession] = useState(null);
   const [stream, setStream] = useState(null);
-  const [socket, setSocket] = useState(null);
   const [pc, setPc] = useState(null);
 
   const localVideoRef = useRef();
@@ -48,18 +48,22 @@ const VideoCallPage = () => {
         setStream(userMedia);
         if (localVideoRef.current) localVideoRef.current.srcObject = userMedia;
 
-        const newSocket = io(SOCKET_SERVER_URL);
-        setSocket(newSocket);
-        newSocket.emit('join', user.id);
-        newSocket.emit('join-session', sessionId);
+        if (socket) {
+          socket.emit('join-session', sessionId);
 
-        newSocket.on('receive-resource', (resource) => {
-          setResources((prev) => [...prev, resource]);
-        });
+          const handleReceiveResource = (resource) => {
+            setResources((prev) => [...prev, resource]);
+          };
 
-        newSocket.on('open-document', (doc) => {
-          setActiveDocument(doc);
-        });
+          const handleOpenDocument = (doc) => {
+            setActiveDocument(doc);
+          };
+
+          socket.on('receive-resource', handleReceiveResource);
+          socket.on('open-document', handleOpenDocument);
+
+          // ... peer connection setup ...
+        }
 
         const peerConnection = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -75,27 +79,27 @@ const VideoCallPage = () => {
 
         const otherParticipant = sessionData.participants.find(p => p._id !== user.id);
 
-        newSocket.on('call-made', async (data) => {
+        socket.on('call-made', async (data) => {
           await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(new RTCSessionDescription(answer));
-          newSocket.emit('make-answer', { answer, to: data.from });
+          socket.emit('make-answer', { answer, to: data.from });
         });
 
-        newSocket.on('answer-made', async (data) => {
+        socket.on('answer-made', async (data) => {
           await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         });
 
-        newSocket.on('ice-candidate', (data) => {
+        socket.on('ice-candidate', (data) => {
           peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         });
 
         peerConnection.onicecandidate = (event) => {
           if (event.candidate) {
-            newSocket.emit('ice-candidate', {
+            socket.emit('ice-candidate', {
               candidate: event.candidate,
               to: otherParticipant._id,
-              from: user.id
+              from: user._id || user.id
             });
           }
         };
@@ -111,18 +115,22 @@ const VideoCallPage = () => {
       if (stream) stream.getTracks().forEach(track => track.stop());
       if (socket) {
         socket.emit('leave-session', sessionId);
-        socket.close();
+        socket.off('receive-resource');
+        socket.off('open-document');
+        socket.off('call-made');
+        socket.off('answer-made');
+        socket.off('ice-candidate');
       }
       if (pc) pc.close();
     };
-  }, [sessionId, user.id]);
+  }, [sessionId, user._id, user.id, socket]);
 
   const handleCall = async () => {
     if (!pc || !socket || !session) return;
     const otherParticipant = session.participants.find(p => p._id !== user.id);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(new RTCSessionDescription(offer));
-    socket.emit('call-user', { offer, to: otherParticipant._id, from: user.id });
+    socket.emit('call-user', { offer, to: otherParticipant._id, from: user._id || user.id });
   };
 
   const toggleMic = () => {

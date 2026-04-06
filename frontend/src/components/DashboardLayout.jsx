@@ -4,6 +4,8 @@ import ProfileCard from './ProfileCard';
 import MatchCards from './MatchCards';
 import RequestsPanel from './RequestsPanel';
 import ChatInterface from './ChatInterface';
+import NotificationPopover from './NotificationPopover';
+import { useSocket } from '../context/SocketContext';
 import { 
   User as UserIcon, 
   Search, 
@@ -21,8 +23,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
+  const { notifications } = useSocket();
   const [activeSection, setActiveSection] = useState('profile');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const sections = [
     { id: 'profile', label: 'My Profile', icon: <UserIcon size={18} /> },
@@ -149,11 +155,38 @@ const DashboardLayout = () => {
 
           <div className="flex items-center gap-3 lg:gap-5">
             {/* Action Group */}
-            <div className="flex items-center gap-1 bg-slate-50/80 p-1.5 rounded-2xl border border-slate-100">
-              <Button variant="ghost" size="icon" className="h-9 w-9 relative text-slate-500 hover:bg-white hover:text-primary rounded-xl shadow-none transition-all">
+            <div className="flex items-center gap-1 bg-slate-50/80 p-1.5 rounded-2xl border border-slate-100 relative">
+              <Button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                variant="ghost" 
+                size="icon" 
+                className={`h-9 w-9 relative text-slate-500 hover:bg-white hover:text-primary rounded-xl shadow-none transition-all ${isNotificationOpen ? 'bg-white text-primary shadow-sm' : ''}`}
+              >
                 <Bell size={18} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full ring-2 ring-white"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full ring-2 ring-white animate-pulse"></span>
+                )}
               </Button>
+              
+              <AnimatePresence>
+                {isNotificationOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[90]" 
+                      onClick={() => setIsNotificationOpen(false)}
+                    />
+                    <NotificationPopover 
+                      isOpen={isNotificationOpen} 
+                      onClose={() => setIsNotificationOpen(false)}
+                      onSelectSection={(sectionId) => {
+                        setActiveSection(sectionId);
+                        setIsNotificationOpen(false);
+                      }}
+                    />
+                  </>
+                )}
+              </AnimatePresence>
+
               <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-500 hover:bg-white hover:text-primary rounded-xl shadow-none transition-all">
                 <Settings size={18} />
               </Button>

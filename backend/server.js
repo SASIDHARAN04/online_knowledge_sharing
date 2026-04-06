@@ -16,10 +16,14 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  // User joins their own room to receive private messages
+  // User joins their own room to receive private messages (e.g. notifications)
   socket.on('join', (userId) => {
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+    if (userId) {
+      socket.join(userId);
+      console.log(`User ${userId} joined their room`);
+    } else {
+      console.log('Socket joined without valid userId');
+    }
   });
 
   // Handle incoming messages
@@ -29,6 +33,7 @@ io.on('connection', (socket) => {
     // Save message to database
     try {
       const Message = require('./src/models/Message');
+      const User = require('./src/models/User');
       const newMessage = new Message({
         sender,
         receiver,
@@ -36,25 +41,38 @@ io.on('connection', (socket) => {
       });
       await newMessage.save();
 
+      // Save notification for the Bell
+      const senderUser = await User.findById(sender);
+      const Notification = require('./src/models/Notification');
+      const newNotification = new Notification({
+        recipient: receiver,
+        sender: sender,
+        type: 'message',
+        message: `New message from ${senderUser?.name || 'Someone'}`,
+      });
+      await newNotification.save();
+      
+      const populatedNotification = await Notification.findById(newNotification._id).populate('sender', 'name avatar');
+
       // Emit to receiver's room
       io.to(receiver).emit('receiveMessage', newMessage);
+      io.to(receiver).emit('new-notification', populatedNotification);
     } catch (error) {
-      console.error('Error saving message:', error);
+      console.error('Error saving message and notification:', error);
     }
   });
 
   // WebRTC Signaling
   socket.on('call-user', (data) => {
-    console.log(`Calling user ${data.to}`);
+    console.log(`Sending offer from ${socket.id} to ${data.to}`);
     socket.to(data.to).emit('call-made', {
       offer: data.offer,
-      socket: socket.id,
-      from: data.from
+      socket: socket.id
     });
   });
 
   socket.on('make-answer', (data) => {
-    console.log(`Making answer to ${data.to}`);
+    console.log(`Sending answer from ${socket.id} to ${data.to}`);
     socket.to(data.to).emit('answer-made', {
       socket: socket.id,
       answer: data.answer
@@ -62,16 +80,63 @@ io.on('connection', (socket) => {
   });
 
   socket.on('ice-candidate', (data) => {
-    console.log(`Sending ICE candidate to ${data.to}`);
+    console.log(`Sending ICE candidate from ${socket.id} to ${data.to}`);
     socket.to(data.to).emit('ice-candidate', {
       candidate: data.candidate,
-      from: data.from
+      from: socket.id
     });
+  });
+
+  // Call Invitation Signaling
+  socket.on('request-call', async (data) => {
+    console.log(`Call requested from ${data.from.name} to ${data.to}`);
+    
+    try {
+      const Notification = require('./src/models/Notification');
+      const newNotification = new Notification({
+        recipient: data.to,
+        sender: data.from.id,
+        type: 'call',
+        message: `${data.from.name} is calling you`,
+        sessionId: data.sessionId
+      });
+      await newNotification.save();
+      
+      const populatedNotification = await Notification.findById(newNotification._id).populate('sender', 'name avatar');
+
+      // Relay to recipient's room
+      socket.to(data.to).emit('incoming-call', {
+        from: data.from,
+        sessionId: data.sessionId
+      });
+
+      // Also emit a general notification for the Bell dropdown
+      socket.to(data.to).emit('new-notification', populatedNotification);
+    } catch (error) {
+      console.error('Error saving call notification:', error);
+    }
+  });
+
+  socket.on('accept-call', (data) => {
+    console.log(`Call accepted by ${socket.id}, notifying ${data.to}`);
+    socket.to(data.to).emit('call-accepted', {
+      sessionId: data.sessionId
+    });
+  });
+
+  socket.on('decline-call', (data) => {
+    console.log(`Call declined by ${socket.id}, notifying ${data.to}`);
+    socket.to(data.to).emit('call-rejected');
   });
 
   socket.on('join-session', (sessionId) => {
     socket.join(sessionId);
     console.log(`Socket ${socket.id} joined session ${sessionId}`);
+    
+    // Notify others in the room that a new user has joined
+    socket.to(sessionId).emit('user-joined', {
+      socket: socket.id
+    });
   });
 
   socket.on('leave-session', (sessionId) => {

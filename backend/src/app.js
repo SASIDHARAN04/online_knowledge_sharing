@@ -23,6 +23,7 @@ const matchRoutes = require('./routes/matchRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const liveSessionRoutes = require('./routes/liveSessionRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);
@@ -31,5 +32,6 @@ app.use('/api/match', matchRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/session', liveSessionRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 module.exports = app;

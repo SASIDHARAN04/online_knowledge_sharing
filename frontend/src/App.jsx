@@ -6,6 +6,9 @@ import LoginPage from './components/LoginPage';
 import VideoCallPage from './components/VideoCallPage';
 import LandingPage from './pages/LandingPage';
 import LiveSession from './pages/LiveSession';
+import { SocketProvider } from './context/SocketContext';
+import CallNotification from './components/CallNotification';
+import CallStatusOverlay from './components/CallStatusOverlay';
 
 /**
  * Loading Screen Component
@@ -42,8 +45,11 @@ function App() {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
-        <div className="min-h-screen bg-background">
-          <Routes>
+        <SocketProvider>
+          <div className="min-h-screen bg-background">
+            <CallNotification />
+            <CallStatusOverlay />
+            <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
             <Route
@@ -85,6 +91,7 @@ function App() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
+        </SocketProvider>
       </AuthProvider>
     </Router>
   );

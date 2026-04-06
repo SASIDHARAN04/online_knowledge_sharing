@@ -53,6 +53,21 @@ const createRequest = async (req, res) => {
     });
 
     await request.save();
+
+    // Create a persistent notification for the recipient
+    try {
+      const Notification = require('../models/Notification');
+      const newNotification = new Notification({
+        recipient: receiverId,
+        sender: req.user._id,
+        type: 'request',
+        message: `${req.user.name} sent you a learning request for ${skillExchange}`
+      });
+      await newNotification.save();
+    } catch (notificationError) {
+      console.error('Error creating request notification:', notificationError);
+    }
+
     const populatedRequest = await Request.findById(request._id)
       .populate('sender', 'name email skillsOffered skillsWanted avatar')
       .populate('receiver', 'name email skillsOffered skillsWanted avatar');

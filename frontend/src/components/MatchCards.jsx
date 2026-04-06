@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { findMatches, sendMatchRequest } from '../services/matchService';
-import { createVideoSession } from '../services/sessionService';
+import { createRealtimeSession } from '../services/sessionService';
+import { useSocket } from '../context/SocketContext';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/Card';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
@@ -13,6 +14,7 @@ const MatchCards = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
   const navigate = useNavigate();
+  const { initiateCall } = useSocket();
 
   useEffect(() => {
     fetchMatches();
@@ -41,11 +43,18 @@ const MatchCards = () => {
     }
   };
 
-  const handleStartSession = async (receiverId, skill) => {
+  const handleStartSession = async (targetUser, skill) => {
     try {
-      const data = await createVideoSession(receiverId, skill);
-      navigate(data.session.meetingLink);
+      // 1. Create the session in the DB
+      const session = await createRealtimeSession(targetUser.id);
+      
+      // 2. Trigger the Socket invitation
+      initiateCall(targetUser.id, targetUser.name, session.sessionId);
+      
+      setMessage({ type: 'success', text: `Calling ${targetUser.name}...` });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
+      console.error('Failed to start session:', error);
       setMessage({ type: 'error', text: 'Failed to start video session' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     }
@@ -163,7 +172,7 @@ const MatchCards = () => {
                   </Button>
                   <Button 
                     className="gap-2 font-bold bg-primary hover:bg-primary/90"
-                    onClick={() => handleStartSession(match.user.id, match.matchedSkills.theyCanTeachYou[0])}
+                    onClick={() => handleStartSession(match.user, match.matchedSkills.theyCanTeachYou[0])}
                     disabled={match.matchedSkills.theyCanTeachYou.length === 0}
                   >
                     <Video size={16} /> Start Video

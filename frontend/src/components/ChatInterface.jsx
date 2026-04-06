@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { getMessages } from '../services/chatService';
 import { getMyRequests } from '../services/requestService';
+import { createRealtimeSession } from '../services/sessionService';
+import { useSocket } from '../context/SocketContext';
 import { Card, CardContent } from './ui/Card';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -11,7 +13,7 @@ import { Search, Send, User, MessageSquare, Video, MoreVertical, Phone, Circle, 
 
 const ChatInterface = () => {
   const { user } = useAuth();
-  const [socket, setSocket] = useState(null);
+  const { socket, initiateCall } = useSocket();
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -20,25 +22,22 @@ const ChatInterface = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const newSocket = io(socketUrl);
-    setSocket(newSocket);
+    if (!socket) return;
 
-    if (user?.id) {
-      newSocket.emit('join', user.id);
-    }
-
-    newSocket.on('receiveMessage', (message) => {
+    const handleReceiveMessage = (message) => {
       if (selectedContact?.id === message.sender || selectedContact?.id === message.receiver) {
          setMessages((prev) => [...prev, message]);
       }
       fetchContacts();
-    });
+    };
 
+    socket.on('receiveMessage', handleReceiveMessage);
     fetchContacts();
 
-    return () => newSocket.close();
-  }, [user, selectedContact?.id]);
+    return () => {
+      socket.off('receiveMessage', handleReceiveMessage);
+    };
+  }, [socket, selectedContact?.id]);
 
   useEffect(() => {
     if (selectedContact) {
@@ -90,7 +89,7 @@ const ChatInterface = () => {
     if (!newMessage.trim() || !selectedContact || !socket) return;
 
     const messageData = {
-      sender: user.id,
+      sender: user._id || user.id,
       receiver: selectedContact.id,
       message: newMessage,
       timestamp: new Date()
@@ -99,6 +98,20 @@ const ChatInterface = () => {
     socket.emit('sendMessage', messageData);
     setMessages((prev) => [...prev, messageData]);
     setNewMessage('');
+  };
+
+  const handleVideoCall = async () => {
+    if (!selectedContact) return;
+    try {
+        const session = await createRealtimeSession(selectedContact.id);
+        if (session) {
+            initiateCall(selectedContact.id, selectedContact.name, session.sessionId);
+            alert(`Calling ${selectedContact.name}...`);
+        }
+    } catch (error) {
+        console.error('Failed to initiate call:', error);
+        alert('Could not start video call. Please try again.');
+    }
   };
 
   const filteredContacts = contacts.filter(c => 
@@ -216,7 +229,14 @@ const ChatInterface = () => {
               </div>
               <div className="flex items-center gap-3">
                  <Button variant="ghost" size="icon" className="h-12 w-12 text-slate-400 hover:bg-slate-50 rounded-2xl"><Phone size={20} /></Button>
-                 <Button variant="ghost" size="icon" className="h-12 w-12 text-slate-400 hover:bg-slate-50 rounded-2xl"><Video size={20} /></Button>
+                 <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="h-12 w-12 text-slate-400 hover:bg-slate-50 rounded-2xl transition-all hover:text-primary hover:bg-primary/5"
+                   onClick={handleVideoCall}
+                 >
+                   <Video size={20} />
+                 </Button>
                  <Button variant="ghost" size="icon" className="h-12 w-12 text-slate-400 hover:bg-slate-50 rounded-2xl"><MoreVertical size={20} /></Button>
               </div>
             </div>
