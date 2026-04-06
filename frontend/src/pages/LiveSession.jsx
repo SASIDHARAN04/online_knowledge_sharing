@@ -121,7 +121,7 @@ const LiveSession = () => {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
-    }, [localStream]);
+    }, [localStream, loading]);
 
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
