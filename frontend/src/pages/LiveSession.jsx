@@ -60,7 +60,10 @@ const LiveSession = () => {
         fetchSession();
 
         if (socket) {
-            socket.emit('join-session', id);
+            const setupSession = async () => {
+                await startLocalStream();
+                socket.emit('join-session', id);
+            };
 
             const handleReceiveResource = (resource) => {
                 setResources((prev) => [resource, ...prev]);
@@ -100,7 +103,7 @@ const LiveSession = () => {
             socket.on('answer-made', handleAnswerMade);
             socket.on('ice-candidate', handleIceCandidate);
 
-            startLocalStream();
+            setupSession();
 
             return () => {
                 socket.emit('leave-session', id);
@@ -195,9 +198,14 @@ const LiveSession = () => {
         };
 
         pc.ontrack = (event) => {
-            console.log('LiveSession: Connected to Remote Stream');
+            console.log(`LiveSession: Connected to Remote ${event.track.kind} Track`);
             if (event.streams && event.streams[0]) {
-                setRemoteStream(event.streams[0]);
+                const stream = event.streams[0];
+                setRemoteStream(stream);
+                // Directly bind stream to the video element to bypass React batching delays
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = stream;
+                }
             }
         };
 
