@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Mic, MicOff, Video as VideoIcon, VideoOff, 
     PhoneOff, Share, Layout, Youtube, FileText, 
-    Users, Shield, Zap, ExternalLink, Clock, Send
+    Users, Shield, Zap, ExternalLink, Clock, Send, Link as LinkIcon, Upload
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
@@ -30,6 +30,7 @@ const LiveSession = () => {
     
     // Form States
     const [youtubeLink, setYoutubeLink] = useState('');
+    const [customLink, setCustomLink] = useState('');
     const [docUrl, setDocUrl] = useState('');
     const [uploadFile, setUploadFile] = useState(null);
 
@@ -295,6 +296,80 @@ const LiveSession = () => {
         } catch (err) { console.error(err); }
     };
 
+    const handleShareLink = async (e) => {
+        e.preventDefault();
+        if (!customLink) return;
+
+        const newResource = {
+            type: 'link',
+            url: customLink.startsWith('http') ? customLink : `https://${customLink}`,
+            title: 'Shared Link',
+            sharedBy: user?._id || user?.id,
+            timestamp: new Date()
+        };
+
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`${SOCKET_SERVER_URL}/api/session/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ sessionId: id, ...newResource })
+            });
+            socket.emit('share-youtube-link', { sessionId: id, resource: newResource }); // Reusing generic resource emit
+            setCustomLink('');
+            setActiveTab('resources');
+        } catch (err) { console.error(err); }
+    };
+
+    const handleShareDocument = async (e) => {
+        e.preventDefault();
+        if (!uploadFile) return;
+
+        let finalUrl = '';
+        let title = uploadFile.name;
+
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${SOCKET_SERVER_URL}/api/session/upload`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+            const data = await res.json();
+            finalUrl = data.url;
+        } catch (err) {
+            console.error('Upload failed', err);
+            return;
+        }
+
+        const ext = title.split('.').pop().toLowerCase();
+        let resourceType = 'document';
+        if (ext === 'pdf') resourceType = 'pdf';
+        if (ext === 'doc' || ext === 'docx') resourceType = 'docx';
+
+        const newResource = {
+            type: resourceType,
+            url: finalUrl,
+            title,
+            sharedBy: user?._id || user?.id,
+            timestamp: new Date()
+        };
+
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`${SOCKET_SERVER_URL}/api/session/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ sessionId: id, ...newResource })
+            });
+            socket.emit('share-youtube-link', { sessionId: id, resource: newResource });
+            setUploadFile(null);
+            setActiveTab('resources');
+        } catch (err) { console.error(err); }
+    };
+
     if (loading) return (
         <div className="h-screen w-full flex items-center justify-center bg-slate-950 text-white flex-col gap-4">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -459,8 +534,8 @@ const LiveSession = () => {
                                             <div key={index} className="p-5 bg-white/5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all flex flex-col gap-4 shadow-2xl">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${res.type === 'youtube' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                                                            {res.type === 'youtube' ? <Youtube size={18} /> : <FileText size={18} />}
+                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${res.type === 'youtube' ? 'bg-red-500/10 text-red-500' : res.type === 'link' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                                            {res.type === 'youtube' ? <Youtube size={18} /> : res.type === 'link' ? <LinkIcon size={18} /> : <FileText size={18} />}
                                                         </div>
                                                         <h4 className="text-[10px] font-black uppercase max-w-[140px] truncate">{res.title}</h4>
                                                     </div>
@@ -468,6 +543,22 @@ const LiveSession = () => {
                                                         <ExternalLink size={14} />
                                                     </a>
                                                 </div>
+
+                                                {res.type === 'youtube' && (
+                                                    <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-inner border border-white/5 group-hover:scale-[1.02] transition-transform duration-500">
+                                                        <iframe width="100%" height="100%" src={res.url} title="Video" frameBorder="0" allowFullScreen />
+                                                    </div>
+                                                )}
+                                                {res.type === 'pdf' && (
+                                                    <div className="h-64 rounded-2xl overflow-hidden bg-white shadow-inner border border-white/5 mt-2">
+                                                        <iframe width="100%" height="100%" src={res.url} title="PDF Viewer" frameBorder="0" />
+                                                    </div>
+                                                )}
+                                                {res.type === 'docx' && (
+                                                    <div className="h-64 rounded-2xl overflow-hidden bg-white shadow-inner border border-white/5 mt-2">
+                                                        <iframe width="100%" height="100%" src={`https://docs.google.com/gview?url=${encodeURIComponent(res.url)}&embedded=true`} title="Doc Viewer" frameBorder="0" />
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -475,8 +566,9 @@ const LiveSession = () => {
                             </div>
                         ) : (
                             <div className="space-y-6 pt-2">
+                                {/* Share YouTube */}
                                 <div className="p-6 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-6">
-                                    <h3 className="text-xs font-black uppercase tracking-widest text-center">Share YouTube</h3>
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-center flex items-center justify-center gap-2"><Youtube size={14} /> Share YouTube</h3>
                                     <form onSubmit={handleShareYoutube} className="space-y-3">
                                         <input 
                                             type="text" 
@@ -486,7 +578,42 @@ const LiveSession = () => {
                                             className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-[10px] font-bold focus:border-primary/50 transition-all"
                                         />
                                         <Button type="submit" className="w-full h-12 rounded-2xl bg-primary font-black uppercase tracking-widest text-[10px]">
-                                            Share <Send size={14} className="ml-2" />
+                                            Embed Video <Send size={14} className="ml-2" />
+                                        </Button>
+                                    </form>
+                                </div>
+
+                                {/* Share Link */}
+                                <div className="p-6 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-6">
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-center flex items-center justify-center gap-2"><LinkIcon size={14} /> Share Web Link</h3>
+                                    <form onSubmit={handleShareLink} className="space-y-3">
+                                        <input 
+                                            type="text" 
+                                            value={customLink}
+                                            onChange={(e) => setCustomLink(e.target.value)}
+                                            placeholder="Paste Any URL..."
+                                            className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-[10px] font-bold focus:border-primary/50 transition-all"
+                                        />
+                                        <Button type="submit" className="w-full h-12 rounded-2xl bg-primary font-black uppercase tracking-widest text-[10px]">
+                                            Send Link <Send size={14} className="ml-2" />
+                                        </Button>
+                                    </form>
+                                </div>
+
+                                {/* Upload Document */}
+                                <div className="p-6 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-6">
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-center flex items-center justify-center gap-2"><Upload size={14} /> Upload Document</h3>
+                                    <form onSubmit={handleShareDocument} className="space-y-3">
+                                        <div className="w-full bg-slate-900 border border-white/5 border-dashed rounded-2xl p-4 text-center cursor-pointer hover:bg-slate-800 transition-all">
+                                            <input 
+                                                type="file" 
+                                                accept=".pdf,.doc,.docx"
+                                                onChange={(e) => setUploadFile(e.target.files[0])}
+                                                className="w-full text-[10px] text-slate-400 file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 cursor-pointer"
+                                            />
+                                        </div>
+                                        <Button type="submit" disabled={!uploadFile} className="w-full h-12 rounded-2xl bg-primary font-black uppercase tracking-widest text-[10px] disabled:opacity-50">
+                                            Upload & Share <Upload size={14} className="ml-2" />
                                         </Button>
                                     </form>
                                 </div>
